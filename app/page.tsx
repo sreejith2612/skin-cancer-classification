@@ -1,116 +1,218 @@
+'use client'
+
+import { useState } from 'react'
+import { useDropzone } from 'react-dropzone'
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { AlertCircle, Upload, Activity } from 'lucide-react'
 import Image from 'next/image'
-import Link from 'next/link'
+import { Progress } from "@/components/ui/progress"
 
-export default function Home() {
+interface AnalysisResult {
+  classification: string;
+  confidence: number;
+  description: string;
+}
+
+export default function SkinLesionClassifier() {
+  const [preview, setPreview] = useState<string | null>(null)
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [image, setImage] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [progress, setProgress] = useState<number>(0)
+  const [uploadedFilename, setUploadedFilename] = useState<string | null>(null)
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    setError(null)
+    setResult(null)
+    const file = acceptedFiles[0]
+    if (file && file.type.startsWith('image/')) {
+      setImage(file)
+      setPreview(URL.createObjectURL(file))
+      
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const response = await fetch('http://localhost:5000/upload', {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await response.json()
+        if (response.ok) {
+          setUploadedFilename(data.filename)
+        } else {
+          setError(data.error || 'Failed to upload image')
+        }
+      } catch {
+        setError('Failed to upload image')
+      }
+    } else {
+      setError('Please upload a valid image file.')
+    }
+  }
+  
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/jpeg': ['.jpeg', '.jpg'],
+      'image/png': ['.png'],
+      'image/gif': ['.gif'],
+    },
+    multiple: false,
+    onDragEnter: () => {},
+    onDragLeave: () => {},
+    onDragOver: () => {},
+  })
+  
+  const handleScan = async () => {
+    if (!uploadedFilename) {
+      setError('Please upload an image before scanning.')
+      return
+    }
+
+    setIsLoading(true)
+    setProgress(0)
+
+    try {
+      const response = await fetch('http://localhost:5000/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename: uploadedFilename }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze image')
+      }
+
+      const result = await response.json()
+      setResult(result)
+    } catch {
+      setError('Failed to analyze image')
+    } finally {
+      setIsLoading(false)
+      setProgress(100)
+    }
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <Link href="/api/python">
-            <code className="font-mono font-bold">api/index.py</code>
-          </Link>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <header className="bg-white bg-opacity-90 backdrop-blur-md border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">DermaScan AI</h1>
+            <nav>
+              <ul className="flex space-x-6">
+                <li><a href="#" className="text-gray-600 hover:text-gray-900 transition-colors">Home</a></li>
+                <li><a href="#" className="text-gray-600 hover:text-gray-900 transition-colors">About</a></li>
+                <li><a href="#" className="text-gray-600 hover:text-gray-900 transition-colors">Contact</a></li>
+              </ul>
+            </nav>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
+      <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Skin Lesion Classifier</h2>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            Upload an image of a skin lesion for instant AI-powered classification and analysis.
           </p>
-        </a>
+        </div>
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800 hover:dark:bg-opacity-30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+        <div className="grid lg:grid-cols-2 gap-8">
+          <Card className="bg-white shadow-lg rounded-2xl overflow-hidden">
+            <CardContent className="p-6">
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                  isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                }`}
+              >
+                <input {...(getInputProps() as React.InputHTMLAttributes<HTMLInputElement>)} />
+                {preview ? (
+                  <div className="relative h-64 w-full">
+                    <Image
+                      src={preview}
+                      alt="Uploaded skin lesion"
+                      fill
+                      style={{ objectFit: 'contain' }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-gray-500">
+                    <Upload className="mx-auto h-16 w-16 mb-4 text-blue-500" />
+                    <p className="text-lg font-medium mb-2">Drag and drop your image here</p>
+                    <p className="text-sm">or click to select a file</p>
+                    <p className="text-xs mt-2 text-gray-400">Supported formats: JPEG, PNG, GIF</p>
+                  </div>
+                )}
+              </div>
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
+              {error && (
+                <div className="flex items-center mt-4 text-red-600">
+                  <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
+              <div className="mt-6">
+                <Button 
+                  onClick={handleScan} 
+                  size="lg" 
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all transform hover:scale-105"
+                  disabled={!uploadedFilename || isLoading}
+                >
+                  {isLoading ? 'Analyzing...' : 'Analyze Image'}
+                </Button>
+              </div>
+
+              {isLoading && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">Analysis in Progress</h3>
+                  <Progress value={progress} className="w-full h-2" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {result && (
+            <Card className="bg-white shadow-lg rounded-2xl overflow-hidden">
+              <CardContent className="p-6">
+                <h3 className="text-2xl font-bold text-gray-900 mb-6">Analysis Results</h3>
+                
+                <div className="space-y-6">
+                  <div className="flex items-start">
+                    <Activity className="h-8 w-8 text-blue-500 mr-4 flex-shrink-0 mt-1" />
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Classification</h4>
+                      <p className="text-xl font-medium text-blue-600">{result.classification}</p>
+                      <p className="text-sm text-gray-500">Confidence: {(result.confidence * 100).toFixed(2)}%</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-900 mb-2">Description</h4>
+                    <p className="text-gray-700">{result.description}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </main>
+
+      <footer className="bg-white bg-opacity-90 backdrop-blur-md border-t border-gray-200 mt-12">
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-gray-500 text-sm">
+            &copy; 2023 DermaScan AI. All rights reserved. For educational purposes only.
           </p>
-        </a>
-      </div>
-    </main>
+        </div>
+      </footer>
+    </div>
   )
 }
